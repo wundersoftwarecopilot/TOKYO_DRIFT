@@ -23,6 +23,7 @@ class DatabaseTreeView extends StatefulWidget {
 class _DatabaseTreeViewState extends State<DatabaseTreeView> {
   bool _isLoading = false;
   bool _tablesExpanded = true;
+  bool _viewsExpanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +121,10 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
         _buildDatabaseInfo(),
         const SizedBox(height: 8),
         _buildTablesSection(),
+        if (database.views.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildViewsSection(),
+        ],
       ],
     );
   }
@@ -158,6 +163,8 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
             _buildInfoRow('Type', database.typeDescription),
             _buildInfoRow('Size', database.formattedSize),
             _buildInfoRow('Tables', '${database.tables.length}'),
+            if (database.views.isNotEmpty)
+              _buildInfoRow('Views', '${database.views.length}'),
             if (database.isReadOnly)
               Container(
                 margin: const EdgeInsets.only(top: 8),
@@ -332,6 +339,130 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
                 },
               ),
         onTap: () => widget.onTableSelected(tableName),
+      ),
+    );
+  }
+
+  Widget _buildViewsSection() {
+    final database = widget.database!;
+
+    return Card(
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _viewsExpanded = !_viewsExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    _viewsExpanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.visibility,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Views (${database.views.length})',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_viewsExpanded && database.views.isNotEmpty)
+            ...database.views.map((viewName) => _buildViewItem(viewName)),
+          if (_viewsExpanded && database.views.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No views found',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewItem(String viewName) {
+    return Container(
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.only(left: 40, right: 16),
+        leading: Icon(
+          Icons.visibility_outlined,
+          size: 16,
+          color: Theme.of(context).colorScheme.secondary.withOpacity(0.7),
+        ),
+        title: Text(
+          viewName,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        trailing: Icon(
+          Icons.info_outline,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+        ),
+        onTap: () => _showViewDefinition(viewName),
+      ),
+    );
+  }
+
+  Future<void> _showViewDefinition(String viewName) async {
+    final definition = await widget.database!.getViewDefinition(viewName);
+    
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.visibility, color: Theme.of(context).colorScheme.secondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                viewName,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.6,
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              definition ?? 'No definition available',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

@@ -13,11 +13,15 @@ class DriftSchemaParser {
 
   static DriftSchemaInfo _parseContent(String content, String filePath) {
     final tables = <DriftTableInfo>[];
+    final views = <DriftViewInfo>[];
     final lines = content.split('\n');
 
     String? currentTableName;
     List<DriftColumnInfo> currentColumns = [];
     bool inTableClass = false;
+    
+    String? currentViewName;
+    bool inViewClass = false;
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
@@ -31,20 +35,42 @@ class DriftSchemaParser {
           currentTableName = match.group(1);
           currentColumns = [];
           inTableClass = true;
+          inViewClass = false;
         }
       }
-      // Detectar fin de clase tabla
-      else if (inTableClass && line == '}') {
-        if (currentTableName != null && currentColumns.isNotEmpty) {
+      // Detectar inicio de clase vista
+      else if ((line.startsWith('class ') || line.startsWith('abstract class ')) && 
+               line.contains('extends View')) {
+        final match = RegExp(
+          r'(?:abstract\s+)?class\s+(\w+)\s+extends\s+View',
+        ).firstMatch(line);
+        if (match != null) {
+          currentViewName = match.group(1);
+          inViewClass = true;
+          inTableClass = false;
+        }
+      }
+      // Detectar fin de clase tabla o vista
+      else if ((inTableClass || inViewClass) && line == '}') {
+        if (inTableClass && currentTableName != null && currentColumns.isNotEmpty) {
           tables.add(
             DriftTableInfo(
               name: currentTableName,
               columns: List.from(currentColumns),
             ),
           );
+        } else if (inViewClass && currentViewName != null) {
+          views.add(
+            DriftViewInfo(
+              name: currentViewName,
+              definition: 'View definition', // Simplified for now
+            ),
+          );
         }
         inTableClass = false;
+        inViewClass = false;
         currentTableName = null;
+        currentViewName = null;
         currentColumns = [];
       }
       // Detectar columnas dentro de clase tabla
@@ -72,6 +98,7 @@ class DriftSchemaParser {
       filePath: filePath,
       databaseName: databaseName ?? 'UnknownDatabase',
       tables: tables,
+      views: views,
     );
   }
 
@@ -135,11 +162,13 @@ class DriftSchemaInfo {
   final String filePath;
   final String databaseName;
   final List<DriftTableInfo> tables;
+  final List<DriftViewInfo> views;
 
   DriftSchemaInfo({
     required this.filePath,
     required this.databaseName,
     required this.tables,
+    this.views = const [],
   });
 
   String get fileName => filePath.split(Platform.pathSeparator).last;
@@ -190,4 +219,31 @@ class DriftColumnInfo {
     required this.isNotNull,
     required this.hasDefault,
   });
+}
+
+class DriftViewInfo {
+  final String name;
+  final String definition;
+
+  DriftViewInfo({
+    required this.name,
+    required this.definition,
+  });
+
+  String get sqlViewName => _camelCaseToSnakeCase(name);
+
+  static String _camelCaseToSnakeCase(String input) {
+    // Remove "View" suffix if present
+    String processedInput = input;
+    if (processedInput.endsWith('View')) {
+      processedInput = processedInput.substring(0, processedInput.length - 4);
+    }
+    
+    return processedInput
+        .replaceAllMapped(
+          RegExp(r'[A-Z]'),
+          (match) => '_${match.group(0)!.toLowerCase()}',
+        )
+        .substring(1); // Remove leading underscore
+  }
 }

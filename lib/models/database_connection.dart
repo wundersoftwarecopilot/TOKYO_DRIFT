@@ -11,6 +11,7 @@ class DatabaseConnection {
   final sql.Database? _sqlite3Db;
   final DriftSchemaInfo? _driftSchema;
   final List<String> tables;
+  final List<String> views;
   final int size;
 
   DatabaseConnection._({
@@ -20,6 +21,7 @@ class DatabaseConnection {
     sql.Database? sqlite3Db,
     DriftSchemaInfo? driftSchema,
     required this.tables,
+    this.views = const [],
     required this.size,
   }) : _sqlite3Db = sqlite3Db,
        _driftSchema = driftSchema;
@@ -47,6 +49,7 @@ class DatabaseConnection {
 
     // Get database info
     final tables = await _getTables(sqlite3Db);
+    final views = await _getViews(sqlite3Db);
     final size = await file.length();
 
     return DatabaseConnection._(
@@ -56,6 +59,7 @@ class DatabaseConnection {
       sqlite3Db: sqlite3Db,
       driftSchema: null,
       tables: tables,
+      views: views,
       size: size,
     );
   }
@@ -68,6 +72,8 @@ class DatabaseConnection {
 
     // Extract table names
     final tables = driftSchema.tables.map((t) => t.name).toList();
+    // Extract view names
+    final views = driftSchema.views.map((v) => v.name).toList();
     final size = await file.length();
 
     return DatabaseConnection._(
@@ -77,6 +83,7 @@ class DatabaseConnection {
       sqlite3Db: null,
       driftSchema: driftSchema,
       tables: tables,
+      views: views,
       size: size,
     );
   }
@@ -84,6 +91,13 @@ class DatabaseConnection {
   static Future<List<String>> _getTables(sql.Database db) async {
     final result = db.select(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    );
+    return result.map((row) => row['name'] as String).toList();
+  }
+
+  static Future<List<String>> _getViews(sql.Database db) async {
+    final result = db.select(
+      "SELECT name FROM sqlite_master WHERE type='view' ORDER BY name",
     );
     return result.map((row) => row['name'] as String).toList();
   }
@@ -203,6 +217,30 @@ class DatabaseConnection {
       case DatabaseType.driftSchema:
         return 'Drift Schema';
     }
+  }
+
+  Future<String?> getViewDefinition(String viewName) async {
+    if (type == DatabaseType.sqlite) {
+      try {
+        final result = _sqlite3Db!.select(
+          "SELECT sql FROM sqlite_master WHERE type='view' AND name=?",
+          [viewName],
+        );
+        if (result.isNotEmpty) {
+          return result.first['sql'] as String?;
+        }
+      } catch (e) {
+        return null;
+      }
+    } else {
+      // Para archivos Drift, obtener definición del parser
+      final view = _driftSchema?.views.firstWhere(
+        (v) => v.name == viewName,
+        orElse: () => DriftViewInfo(name: '', definition: ''),
+      );
+      return view?.definition;
+    }
+    return null;
   }
 
   void close() {
