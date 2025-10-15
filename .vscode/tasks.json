@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Ejecutar App Flutter",
+			"type": "shell",
+			"command": "flutter run -d windows",
+			"isBackground": true,
+			"group": "test"
+		}
+	]
+}
