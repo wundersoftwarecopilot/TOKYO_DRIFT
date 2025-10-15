@@ -12,6 +12,13 @@
 .swiftpm/
 migrate_working_dir/
 
+# Test databases and scripts
+*.db
+*.sqlite
+*.sqlite3
+create_test_db_with_views.sh
+test_view_parsing.dart
+
 # IntelliJ related
 *.iml
 *.ipr
