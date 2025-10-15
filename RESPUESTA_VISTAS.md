@@ -2,7 +2,7 @@
 
 ## Respuesta: ¡SÍ!
 
-TOKYO DRIFT ahora soporta completamente vistas SQL tanto en bases de datos SQLite como en archivos de esquema Drift (.dart).
+TOKYO DRIFT ahora admite completamente vistas SQL tanto en bases de datos SQLite como en archivos de esquema Drift (.dart).
 
 ## Características Implementadas
 
@@ -114,9 +114,9 @@ WHERE p.stock < 10;
    - `.as('nombre_alias')` en Drift
    - `AS alias` en SQL
 
-## Archivos Modificados
+## Archivos del Proyecto
 
-### Archivos del Sistema
+### Archivos del Sistema (Modificados)
 
 1. **`lib/models/drift_schema_parser.dart`**
    - Nueva clase `DriftViewInfo` para representar vistas
@@ -138,7 +138,7 @@ WHERE p.stock < 10;
    - Ejemplos de código
    - Guía de uso
 
-### Archivos de Ejemplo
+### Archivos de Ejemplo (Nuevos)
 
 1. **`test_views.dart`**
    - Ejemplo básico con 2 vistas
@@ -147,7 +147,7 @@ WHERE p.stock < 10;
    - Ejemplo completo con 5 tipos diferentes de vistas
    - Demuestra varias técnicas (filtros, JOINs, agregaciones)
 
-3. **`test_database_with_views.db`**
+3. **`test_database_with_views.db`** (no incluido en repositorio)
    - Base de datos SQLite de prueba
    - Contiene 3 tablas y 5 vistas
 
@@ -166,8 +166,16 @@ Todas las vistas se detectan correctamente y sus definiciones SQL se pueden visu
 
 ## Limitaciones Actuales
 
-1. Para archivos Drift, la definición completa de la vista no se reconstruye a partir del código Dart (se muestra un mensaje simplificado)
-2. El soporte se centra en vistas estándar; vistas con características avanzadas de SQLite pueden requerir ajustes
+1. **Definiciones de vistas en Drift:** 
+   - Para archivos Drift, la definición completa de la vista no se reconstruye a partir del código Dart
+   - Se muestra un mensaje simplificado en lugar de la consulta SQL completa
+   - Esta es una limitación de visualización únicamente - no afecta la funcionalidad
+   - Las vistas se detectan correctamente y se listan en la interfaz
+   - En SQLite, las definiciones SQL completas se muestran sin problemas
+
+2. **Características avanzadas de SQLite:**
+   - El soporte se centra en vistas estándar
+   - Vistas con características muy específicas de SQLite pueden requerir ajustes manuales
 
 ## Conclusión
 
