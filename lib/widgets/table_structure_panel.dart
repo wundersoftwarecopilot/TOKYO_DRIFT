@@ -21,6 +21,7 @@ class _TableStructurePanelState extends State<TableStructurePanel> {
   List<ColumnInfo> _columns = [];
   bool _isLoading = false;
   String? _error;
+  bool _isView = false;
 
   @override
   void initState() {
@@ -43,7 +44,18 @@ class _TableStructurePanelState extends State<TableStructurePanel> {
     });
 
     try {
-      if (widget.database.type == DatabaseType.driftSchema) {
+      // Check if it's a view first
+      final isView = await widget.database.isView(widget.tableName);
+      
+      setState(() {
+        _isView = isView;
+      });
+      
+      if (isView) {
+        // For views, we'll try to get column info from PRAGMA table_info
+        // If that fails, we'll show the view definition instead
+        _columns = await widget.database.getTableSchema(widget.tableName);
+      } else if (widget.database.type == DatabaseType.driftSchema) {
         final driftTables = DriftParser.parseDriftFile(widget.database.path);
         final tableNameLower = widget.tableName.toLowerCase();
         final driftTable = driftTables.firstWhere(
@@ -70,11 +82,12 @@ class _TableStructurePanelState extends State<TableStructurePanel> {
           _isLoading = false;
         });
         return;
+      } else {
+        // Regular table or view - use standard schema method
+        _columns = await widget.database.getTableSchema(widget.tableName);
       }
 
-      final columns = await widget.database.getTableSchema(widget.tableName);
       setState(() {
-        _columns = columns;
         _isLoading = false;
       });
     } catch (e) {
@@ -123,11 +136,44 @@ class _TableStructurePanelState extends State<TableStructurePanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Table Structure: ${widget.tableName}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      _isView ? 'View Structure: ' : 'Table Structure: ',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      widget.tableName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: _isView 
+                          ? Theme.of(context).colorScheme.secondary
+                          : Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_isView)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'VIEW',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 Text(
                   '${_columns.length} column(s)',

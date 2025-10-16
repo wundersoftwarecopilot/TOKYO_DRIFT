@@ -29,6 +29,7 @@ class SqlEditorPanel extends StatefulWidget {
   final Function(String)? onDatabaseSelected;
   final bool _isWorkingMode;
   final Future<void> Function()? onSchemaChanged;
+  final Function(String query, List<Map<String, dynamic>>? results)? onQueryExecuted;
 
   const SqlEditorPanel({
     super.key,
@@ -36,6 +37,7 @@ class SqlEditorPanel extends StatefulWidget {
     this.onDatabaseSelected,
     bool isWorkingMode = false,
     this.onSchemaChanged,
+    this.onQueryExecuted,
   }) : _isWorkingMode = isWorkingMode;
 
   @override
@@ -124,8 +126,7 @@ class _SqlEditorPanelState extends State<SqlEditorPanel> {
               data: [
                 {
                   'message':
-                      'Temporary database created from Drift. ${_driftTables.length} table(s) loaded.' +
-                      (hasSeedData ? ' Seed data loaded.' : ''),
+                      'Temporary database created from Drift. ${_driftTables.length} table(s) loaded.${hasSeedData ? ' Seed data loaded.' : ''}',
                 },
               ],
               timestamp: DateTime.now(),
@@ -289,15 +290,7 @@ class _SqlEditorPanelState extends State<SqlEditorPanel> {
         children: [
           _buildToolbar(theme),
           Expanded(
-            child: Row(
-              children: [
-                Expanded(flex: 1, child: _buildQueryEditor(theme)),
-                if (_queryHistory.isNotEmpty) ...[
-                  Container(width: 1, color: theme.dividerColor),
-                  Expanded(flex: 1, child: _buildQueryResults(theme)),
-                ],
-              ],
-            ),
+            child: _buildQueryEditor(theme),
           ),
         ],
       ),
@@ -554,267 +547,14 @@ class _SqlEditorPanelState extends State<SqlEditorPanel> {
       return 'Write your SQL query here...\n\nAvailable tables: users, products, orders\n\nExamples:\nSELECT * FROM users;\nSELECT name, price FROM products WHERE price > 50;\nINSERT INTO users (name, email, registration_date) VALUES (\'Test\', \'test@email.com\', strftime(\'%s\', \'now\'));\n\nPress Ctrl+Enter to execute';
     } else if (_isDriftMode && _driftTables.isNotEmpty) {
       final tableNames = _driftTables.map((t) => t.tableName).join(', ');
-      return '🎯 DRIFT MODE ACTIVE\n\nWorking with: ${widget.databasePath?.split(Platform.pathSeparator).last}\nTables: $tableNames\n\n✨ Available features:\n• SELECT, INSERT, UPDATE, DELETE\n• CREATE TABLE, ALTER TABLE, DROP TABLE\n• Structural changes will update the .dart file\n\nExamples:\nSELECT * FROM $tableNames;\nCREATE TABLE new_table (id INTEGER PRIMARY KEY, name TEXT);\nALTER TABLE users ADD COLUMN phone TEXT;\n\nPress Ctrl+Enter to execute';
+      return '🎯 DRIFT MODE ACTIVE\n\nWorking with: ${widget.databasePath?.split(Platform.pathSeparator).last}\nTables: $tableNames\n\n✨ Available features:\n• SELECT, INSERT, UPDATE, DELETE\n• CREATE TABLE, ALTER TABLE, DROP TABLE\n• CREATE VIEW, DROP VIEW\n• Structural changes will update the .dart file\n\nExamples:\nSELECT * FROM $tableNames;\nCREATE TABLE new_table (id INTEGER PRIMARY KEY, name TEXT);\nCREATE VIEW active_users AS SELECT * FROM users WHERE active = 1;\nALTER TABLE users ADD COLUMN phone TEXT;\nDROP VIEW active_users;\n\nPress Ctrl+Enter to execute';
     } else {
-      return 'Write your SQL query here...\n\n📝 Examples:\nSELECT * FROM table_name;\nINSERT INTO table (column) VALUES (\'value\');\nUPDATE table SET column = \'new_value\' WHERE id = 1;\n\nPress Ctrl+Enter to execute\n\n💡 Tip: If you have a .dart file, a temporary database will be created automatically';
+      return 'Write your SQL query here...\n\n📝 Examples:\nSELECT * FROM table_name;\nINSERT INTO table (column) VALUES (\'value\');\nUPDATE table SET column = \'new_value\' WHERE id = 1;\nCREATE VIEW view_name AS SELECT column FROM table WHERE condition;\nDROP VIEW view_name;\n\nPress Ctrl+Enter to execute\n\n💡 Tip: If you have a .dart file, a temporary database will be created automatically';
     }
   }
 
-  Widget _buildQueryResults(ThemeData theme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.3,
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.table_chart,
-                  size: 16,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Results',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${_queryHistory.length} quer${_queryHistory.length != 1 ? 'ies' : 'y'}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: _queryHistory.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final result = _queryHistory[_queryHistory.length - 1 - index];
-                return _buildQueryResultCard(result, theme);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildQueryResultCard(QueryResult result, ThemeData theme) {
-    final success = result.isSuccess;
-    final hasData = result.data?.isNotEmpty == true;
 
-    return Card(
-      elevation: 2,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: success
-                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : theme.colorScheme.errorContainer.withValues(alpha: 0.3),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  success ? Icons.check_circle : Icons.error,
-                  color: success
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.error,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  success ? 'Executed successfully' : 'Query error',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: success
-                        ? theme.colorScheme.onPrimaryContainer
-                        : theme.colorScheme.onErrorContainer,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _formatTimestamp(result.timestamp),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: success
-                        ? theme.colorScheme.onPrimaryContainer.withValues(
-                            alpha: 0.7,
-                          )
-                        : theme.colorScheme.onErrorContainer.withValues(
-                            alpha: 0.7,
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!success && result.error != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer.withValues(
-                        alpha: 0.1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: theme.colorScheme.error.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Text(
-                      result.error!,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ] else if (hasData) ...[
-                  _buildDataTable(result.data!, theme),
-                ] else if (result.affectedRows != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withValues(
-                        alpha: 0.1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Affected rows: ${result.affectedRows}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataTable(List<Map<String, dynamic>> data, ThemeData theme) {
-    if (data.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'The query returned no results',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      );
-    }
-
-    final columns = data.first.keys.toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowHeight: 48,
-          dataRowMinHeight: 40,
-          dataRowMaxHeight: 60,
-          columnSpacing: 24,
-          headingTextStyle: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onSurface,
-          ),
-          dataTextStyle: theme.textTheme.bodySmall?.copyWith(
-            fontFamily: 'monospace',
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-          ),
-          columns: columns.map((column) {
-            return DataColumn(
-              label: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(column),
-              ),
-            );
-          }).toList(),
-          rows: data.map((row) {
-            return DataRow(
-              cells: columns.map((column) {
-                final value = row[column];
-                return DataCell(
-                  Container(
-                    constraints: const BoxConstraints(maxWidth: 200),
-                    child: Text(
-                      value?.toString() ?? 'NULL',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: value == null
-                            ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                            : null,
-                        fontStyle: value == null ? FontStyle.italic : null,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final diff = now.difference(timestamp);
-
-    if (diff.inMinutes < 1) {
-      return 'Now';
-    } else if (diff.inHours < 1) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inDays < 1) {
-      return '${diff.inHours}h ago';
-    } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
-    }
-  }
 
   SqlQueryType _detectQueryType(String query) {
     final normalizedQuery = query.trim().toLowerCase();
@@ -877,6 +617,11 @@ class _SqlEditorPanelState extends State<SqlEditorPanel> {
       setState(() {
         _queryHistory.add(result);
       });
+
+      // Notify parent about query execution
+      if (widget.onQueryExecuted != null) {
+        widget.onQueryExecuted!(query, result.data);
+      }
 
       // Only close connection if not work mode and not Drift
       if (!widget._isWorkingMode &&

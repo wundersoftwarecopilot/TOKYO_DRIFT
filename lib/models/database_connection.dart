@@ -83,7 +83,7 @@ class DatabaseConnection {
 
   static Future<List<String>> _getTables(sql.Database db) async {
     final result = db.select(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name",
     );
     return result.map((row) => row['name'] as String).toList();
   }
@@ -183,6 +183,52 @@ class DatabaseConnection {
       'SELECT COUNT(*) as count FROM "$tableName"',
     );
     return result.first['count'] as int;
+  }
+
+  Future<bool> isView(String objectName) async {
+    if (type != DatabaseType.sqlite) {
+      return false;
+    }
+
+    final result = _sqlite3Db!.select(
+      "SELECT type FROM sqlite_master WHERE name = ? AND type = 'view'",
+      [objectName],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<String?> getViewDefinition(String viewName) async {
+    if (type != DatabaseType.sqlite) {
+      return null;
+    }
+
+    final result = _sqlite3Db!.select(
+      "SELECT sql FROM sqlite_master WHERE name = ? AND type = 'view'",
+      [viewName],
+    );
+    return result.isNotEmpty ? result.first['sql'] as String? : null;
+  }
+
+  Future<List<String>> getViews() async {
+    if (type != DatabaseType.sqlite) {
+      return [];
+    }
+
+    final result = _sqlite3Db!.select(
+      "SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name",
+    );
+    return result.map((row) => row['name'] as String).toList();
+  }
+
+  Future<List<String>> getTables() async {
+    if (type != DatabaseType.sqlite) {
+      return tables; // Para Drift, devolver las tablas parseadas
+    }
+
+    final result = _sqlite3Db!.select(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    );
+    return result.map((row) => row['name'] as String).toList();
   }
 
   String get formattedSize {

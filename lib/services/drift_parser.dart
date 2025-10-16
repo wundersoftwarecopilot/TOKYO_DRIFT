@@ -65,7 +65,7 @@ class DriftColumn {
 
   String toDriftCode() {
     var baseType = type.toLowerCase().replaceAll('column', '');
-    var code = '${type} get $name => $baseType()';
+    var code = '$type get $name => $baseType()';
 
     if (isAutoIncrement) code += '.autoIncrement()';
     if (isNullable) code += '.nullable()';
@@ -278,12 +278,14 @@ class DriftParser {
   static String _sqlTypeToDriftType(String sqlType) {
     final upperType = sqlType.toUpperCase();
     if (upperType.contains('INT')) return 'IntColumn';
-    if (upperType.contains('TEXT') || upperType.contains('VARCHAR'))
+    if (upperType.contains('TEXT') || upperType.contains('VARCHAR')) {
       return 'TextColumn';
+    }
     if (upperType.contains('REAL') ||
         upperType.contains('FLOAT') ||
-        upperType.contains('DOUBLE'))
+        upperType.contains('DOUBLE')) {
       return 'RealColumn';
+    }
     if (upperType.contains('BLOB')) return 'BlobColumn';
     return 'TextColumn'; // Default
   }

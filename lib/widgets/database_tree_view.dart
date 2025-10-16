@@ -23,6 +23,48 @@ class DatabaseTreeView extends StatefulWidget {
 class _DatabaseTreeViewState extends State<DatabaseTreeView> {
   bool _isLoading = false;
   bool _tablesExpanded = true;
+  bool _viewsExpanded = true;
+  List<String> _tables = [];
+  List<String> _views = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDatabaseObjects();
+  }
+
+  @override
+  void didUpdateWidget(covariant DatabaseTreeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.database != widget.database) {
+      _loadDatabaseObjects();
+    }
+  }
+
+  Future<void> _loadDatabaseObjects() async {
+    if (widget.database == null) {
+      setState(() {
+        _tables = [];
+        _views = [];
+      });
+      return;
+    }
+
+    try {
+      final tables = await widget.database!.getTables();
+      final views = await widget.database!.getViews();
+      
+      setState(() {
+        _tables = tables;
+        _views = views;
+      });
+    } catch (e) {
+      setState(() {
+        _tables = widget.database?.tables ?? [];
+        _views = [];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,14 +154,16 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
   }
 
   Widget _buildDatabaseTree() {
-    final database = widget.database!;
-
     return ListView(
       padding: const EdgeInsets.all(8),
       children: [
         _buildDatabaseInfo(),
         const SizedBox(height: 8),
         _buildTablesSection(),
+        const SizedBox(height: 8),
+        _buildViewsSection(),
+        const SizedBox(height: 8),
+        _buildDriftModeCard(),
       ],
     );
   }
@@ -218,8 +262,6 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
   }
 
   Widget _buildTablesSection() {
-    final database = widget.database!;
-
     return Card(
       child: Column(
         children: [
@@ -247,7 +289,7 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Tables (${database.tables.length})',
+                    'Tables (${_tables.length})',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -256,9 +298,9 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
               ),
             ),
           ),
-          if (_tablesExpanded && database.tables.isNotEmpty)
-            ...database.tables.map((tableName) => _buildTableItem(tableName)),
-          if (_tablesExpanded && database.tables.isEmpty)
+          if (_tablesExpanded && _tables.isNotEmpty)
+            ..._tables.map((tableName) => _buildTableItem(tableName)),
+          if (_tablesExpanded && _tables.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
@@ -336,6 +378,176 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
     );
   }
 
+  Widget _buildViewsSection() {
+    return Card(
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _viewsExpanded = !_viewsExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    _viewsExpanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.visibility,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Views (${_views.length})',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_viewsExpanded && _views.isNotEmpty)
+            ..._views.map((viewName) => _buildViewItem(viewName)),
+          if (_viewsExpanded && _views.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No views found',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewItem(String viewName) {
+    final isSelected = widget.selectedTable == viewName;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isSelected
+            ? Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.3)
+            : null,
+      ),
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.only(left: 40, right: 16),
+        leading: Icon(
+          Icons.view_agenda,
+          size: 16,
+          color: isSelected
+              ? Theme.of(context).colorScheme.secondary
+              : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+        ),
+        title: Text(
+          viewName,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: isSelected ? Theme.of(context).colorScheme.secondary : null,
+            fontWeight: isSelected ? FontWeight.bold : null,
+          ),
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 2,
+          ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'VIEW',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
+          ),
+        ),
+        onTap: () => widget.onTableSelected(viewName),
+      ),
+    );
+  }
+
+  Widget _buildDriftModeCard() {
+    final database = widget.database!;
+    
+    if (database.type != DatabaseType.driftSchema) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.code,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Drift Mode',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This is a Drift schema file. You can create and modify tables, views, and execute SQL queries.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => widget.onTableSelected('__sql_mode__'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'Open SQL Editor',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openDatabase() async {
     setState(() {
       _isLoading = true;
@@ -350,7 +562,7 @@ class _DatabaseTreeViewState extends State<DatabaseTreeView> {
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
-        final database = await DatabaseConnection.open(filePath);
+        await DatabaseConnection.open(filePath);
         // Note: We need to pass this back to the parent widget
         // For now, this is just a placeholder
       }

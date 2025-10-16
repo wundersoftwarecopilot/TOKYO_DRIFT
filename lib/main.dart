@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Configure window to be maximized and centered
+  await windowManager.ensureInitialized();
+  
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1200, 800),
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+    await windowManager.maximize();
+  });
+  
   runApp(const DriftAdminApp());
 }
 
